@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>历史成片 · 幻演</title>
+  <link rel="icon" href="/mark.png?v=2">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="/mark.png?v=2" alt="" width="44" height="36">
+      <span class="brand-text">
+        <span class="brand-zh">幻演</span>
+        <span class="brand-en">MotionDeck</span>
+      </span>
+    </a>
+    <a class="nav-pill" href="/create">返回制作</a>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">预览并回看</p>
+      <h1>历史成片</h1>
+      <p class="lede">点开一条，即可预览并再次导出。</p>
+    </section>
+    <section class="panel">
+      <div class="player-frame">
+        <video id="player" controls hidden></video>
+      </div>
+      <p id="viewer-title" hidden></p>
+      <a id="download" class="button secondary" hidden>下载 MP4</a>
+      <p id="empty" class="empty" hidden>还没有生成完成的视频。</p>
+      <p id="error" class="error" role="alert" hidden></p>
+      <ul id="list" class="history-list"></ul>
+    </section>
+  </main>
+  <script src="/history.js" type="module"></script>
+</body>
+</html>

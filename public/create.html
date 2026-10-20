@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>制作视频 · 幻演</title>
+  <link rel="icon" href="/mark.png?v=2">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="studio">
+  <svg class="curves" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="curve-wash" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#c4b5fd"/>
+        <stop offset="0.55" stop-color="#a5b4fc"/>
+        <stop offset="1" stop-color="#93c5fd"/>
+      </linearGradient>
+    </defs>
+    <g class="wash" fill="none" stroke="url(#curve-wash)" stroke-linecap="round">
+      <path class="c1" d="M -60 470 C 240 210, 460 730, 760 420 C 1060 110, 1220 690, 1520 360"></path>
+      <path class="c2" d="M -80 560 C 180 360, 520 820, 820 540 C 1120 260, 1260 760, 1540 500"></path>
+      <path class="c3" d="M -40 340 C 260 120, 500 560, 800 330 C 1100 100, 1240 520, 1500 280"></path>
+    </g>
+    <g class="line" fill="none" stroke="url(#curve-wash)" stroke-linecap="round" stroke-width="1.6">
+      <path class="c1" d="M -60 470 C 240 210, 460 730, 760 420 C 1060 110, 1220 690, 1520 360"></path>
+      <path class="c2" d="M -80 560 C 180 360, 520 820, 820 540 C 1120 260, 1260 760, 1540 500"></path>
+      <path class="c3" d="M -40 340 C 260 120, 500 560, 800 330 C 1100 100, 1240 520, 1500 280"></path>
+    </g>
+  </svg>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="/mark.png?v=2" alt="" width="44" height="36">
+      <span class="brand-text">
+        <span class="brand-zh">幻演</span>
+        <span class="brand-en">MotionDeck</span>
+      </span>
+    </a>
+    <nav class="top-nav" aria-label="页面">
+      <a class="nav-quiet" href="/">产品介绍</a>
+      <a class="nav-pill" href="/history">历史成片</a>
+    </nav>
+  </header>
+
+  <main>
+    <form id="upload-form" class="panel">
+      <h1 class="composer-title">让 PPT 动起来，让表达更出彩</h1>
+      <label class="drop" id="drop">
+        <input id="file" name="file" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+        <span id="file-label">选择或拖入 .pptx，最大 50 MB，最多 80 页</span>
+        <span class="send" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 17V7M12 7l-4 4M12 7l4 4"/></svg>
+        </span>
+      </label>
+      <div class="actions" id="idle-actions" hidden></div>
+
+      <div id="setup" hidden>
+        <article class="file-card">
+          <div>
+            <strong id="file-name"></strong>
+            <span id="file-meta"></span>
+          </div>
+          <button id="remove-file" type="button" class="text-button">移除</button>
+        </article>
+
+        <div class="options attrs">
+          <fieldset>
+            <legend>脚本内容</legend>
+            <div id="script-sources" class="choice-row"></div>
+          </fieldset>
+          <fieldset>
+            <legend>重点内容高亮显示</legend>
+            <div id="highlights" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>语言</legend>
+            <div id="languages" class="choice-row"></div>
+          </fieldset>
+          <fieldset>
+            <legend>语调</legend>
+            <div id="tones" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset class="span-2">
+            <legend>音色</legend>
+            <div id="voices" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset class="span-2">
+            <legend>背景音乐</legend>
+            <div id="music-options" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>字幕导入</legend>
+            <div id="import-modes" class="choice-row"></div>
+          </fieldset>
+          <fieldset>
+            <legend>字幕样式</legend>
+            <div id="caption-styles" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset class="span-2">
+            <legend>模板</legend>
+            <div class="market-tabs" id="market-tabs">
+              <button type="button" id="tab-public">公共模板</button>
+              <button type="button" id="tab-mine">我的模板</button>
+            </div>
+            <div id="template-categories" class="choice-row"></div>
+            <div id="template-grid" class="template-grid"></div>
+            <div class="editor-bar">
+              <p class="hint">选好模板后可保存组合，方便下次复用。</p>
+              <button id="save-template" type="button" class="text-button">保存到我的模板</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="span-2">
+            <legend>数字人</legend>
+            <p class="hint field-hint">数字人贴在画面下角。有旁白时在闭嘴和讲话两张图之间切换。</p>
+            <div id="avatars" class="avatar-row"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>视频时长</legend>
+            <div id="paces" class="choice-row"></div>
+          </fieldset>
+          <fieldset id="layout-field">
+            <legend>画幅</legend>
+            <div id="layouts" class="choice-row"></div>
+          </fieldset>
+
+          <fieldset class="span-2">
+            <legend>转场</legend>
+            <div id="effects" class="choice-row"></div>
+          </fieldset>
+        </div>
+
+        <div id="context-fields" class="context-grid">
+          <label>目标受众<input id="audience" maxlength="80" placeholder="例如新员工"></label>
+          <label>演讲者<input id="speaker" maxlength="80" placeholder="例如产品经理"></label>
+          <label>学习目标<input id="goals" maxlength="80" placeholder="例如能讲清流程"></label>
+        </div>
+        <div id="script-editor" hidden>
+          <div class="editor-bar">
+            <p class="hint">改完某一页再生成。空脚本的页面只保留画面。</p>
+            <button id="rewrite" type="button" class="text-button">按选项重写</button>
+          </div>
+          <div id="scripts"></div>
+        </div>
+
+        <div class="actions create-actions">
+          <button id="submit" type="submit">生成视频</button>
+          <button id="preview-voice" type="button" class="button secondary">试听音色</button>
+        </div>
+        <audio id="preview-audio" hidden></audio>
+      </div>
+      <p id="form-error" class="error" role="alert" hidden></p>
+    </form>
+
+    <section class="recent-reel" aria-label="最新成片">
+      <div class="recent-reel-head">
+        <h2>最新成片</h2>
+        <p>最近生成的视频持续轮播，点击可打开预览。</p>
+      </div>
+      <div class="recent-reel-viewport">
+        <div id="recent-reel" class="recent-reel-track"></div>
+      </div>
+    </section>
+
+    <section id="job" class="panel" hidden>
+      <h2>预览并导出</h2>
+      <ol id="steps">
+        <li data-step="validate">读取备注</li>
+        <li data-step="render">导出画面</li>
+        <li data-step="speech">合成语音</li>
+        <li data-step="compose">拼接视频</li>
+      </ol>
+      <p id="status-text" aria-live="polite"></p>
+      <p id="job-error" class="error" role="alert" hidden></p>
+      <div class="player-frame">
+        <video id="player" controls hidden></video>
+      </div>
+      <a id="download" class="button secondary" hidden>下载 MP4</a>
+      <h2 id="notes-title" hidden>页面备注</h2>
+      <ul id="notes"></ul>
+    </section>
+  </main>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
