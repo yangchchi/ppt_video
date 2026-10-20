@@ -39,7 +39,16 @@ npm run dev
 docker compose up --build
 ```
 
+国内服务器 apt 过慢时，换镜像源再构建：
+
+```bash
+docker compose build --build-arg APT_MIRROR=mirrors.aliyun.com
+docker compose up -d
+```
+
 服务监听 `3780`，任务数据写在挂载的 `./data`。
+
+> 首次构建会装 LibreOffice 等大包，可能需 10–30 分钟；日志里持续出现 `Get:N` 说明仍在下载，并非卡死。
 
 ## 说明
 

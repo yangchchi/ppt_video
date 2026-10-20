@@ -1,6 +1,10 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # 国内可设：APT_MIRROR=mirrors.aliyun.com
+        APT_MIRROR: ${APT_MIRROR:-}
     ports:
       - "3780:3780"
     volumes:
