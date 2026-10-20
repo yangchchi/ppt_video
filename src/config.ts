@@ -7,6 +7,7 @@ export const jobsDir = path.join(dataDir, "jobs");
 export const publicDir = path.join(rootDir, "public");
 export const avatarSourcesDir = path.join(rootDir, "assets", "avatars");
 
+export const host = process.env.HOST ?? "127.0.0.1";
 export const port = Number(process.env.PORT ?? 3780);
 export const ttsVoice = process.env.TTS_VOICE ?? "zh-CN-XiaoxiaoNeural";
 export const emptySlideSeconds = Number(process.env.EMPTY_SLIDE_SECONDS ?? 3);

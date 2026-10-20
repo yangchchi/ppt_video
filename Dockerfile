@@ -1,7 +1,7 @@
 FROM node:20-bookworm-slim
 
-# 国内服务器可加：--build-arg APT_MIRROR=mirrors.aliyun.com
-ARG APT_MIRROR=
+# 默认阿里云 apt 源；海外可覆盖：--build-arg APT_MIRROR=deb.debian.org
+ARG APT_MIRROR=mirrors.aliyun.com
 RUN if [ -n "$APT_MIRROR" ]; then \
       sed -i "s|deb.debian.org|$APT_MIRROR|g; s|security.debian.org|$APT_MIRROR|g" \
         /etc/apt/sources.list.d/debian.sources 2>/dev/null \

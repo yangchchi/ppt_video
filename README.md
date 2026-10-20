@@ -31,19 +31,18 @@ npm run dev
 
 打开 <http://127.0.0.1:3780>。
 
-可选环境变量：`PORT`、`SOFFICE_PATH`、`SUBTITLE_FONT`、`TTS_VOICE`、`MAX_UPLOAD_MB`、`MAX_SLIDES`。
+可选环境变量：`HOST`（默认 `127.0.0.1`；Docker 用 `0.0.0.0`）、`PORT`、`SOFFICE_PATH`、`SUBTITLE_FONT`、`TTS_VOICE`、`MAX_UPLOAD_MB`、`MAX_SLIDES`。
 
 ## Docker
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
-国内服务器 apt 过慢时，换镜像源再构建：
+默认使用阿里云 apt 源（`mirrors.aliyun.com`）。海外环境可覆盖：
 
 ```bash
-docker compose build --build-arg APT_MIRROR=mirrors.aliyun.com
-docker compose up -d
+APT_MIRROR=deb.debian.org docker compose up -d --build
 ```
 
 服务监听 `3780`，任务数据写在挂载的 `./data`。
