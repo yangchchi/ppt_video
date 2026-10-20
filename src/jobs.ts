@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { jobsDir, maxSlides } from "./config.js";
 import {
+  defaultAvatarCorner,
   defaultCaptionStyle,
   defaultEffect,
   defaultImportMode,
@@ -33,7 +34,14 @@ import {
   type ToneId,
   type VoiceId,
 } from "./options.js";
-import { defaultAvatar, defaultTemplate, parseAvatar, parseTemplate } from "./catalog.js";
+import {
+  defaultAvatar,
+  defaultTemplate,
+  parseAvatar,
+  parseAvatarCorner,
+  parseAvatarScale,
+  parseTemplate,
+} from "./catalog.js";
 import { extractDeck, type SlideCopy, type SlideRegion } from "./pipeline/extractNotes.js";
 import { buildNarration, type ScriptContext } from "./pipeline/script.js";
 import { runJob } from "./pipeline/runJob.js";
@@ -128,6 +136,8 @@ export function toPublicJob(job: Job) {
     layout: job.layout,
     template: job.template,
     avatar: job.avatar,
+    avatarCorner: job.avatarCorner,
+    avatarScale: job.avatarScale,
     music: job.music,
     highlight: job.highlight,
     captionStyle: job.captionStyle,
@@ -166,6 +176,8 @@ function defaults(): JobSettings {
     layout: defaultLayout,
     template: defaultTemplate,
     avatar: defaultAvatar,
+    avatarCorner: defaultAvatarCorner,
+    avatarScale: parseAvatarScale(undefined, defaultTemplate),
     music: defaultMusic,
     highlight: true,
     captionStyle: defaultCaptionStyle,
@@ -220,6 +232,27 @@ function hydrate(raw: Partial<Job> & { id: string; dir: string }): Job {
       }
     })(),
     avatar: storedAvatar(raw.avatar ?? base.avatar),
+    avatarCorner: (() => {
+      try {
+        return parseAvatarCorner(raw.avatarCorner ?? base.avatarCorner);
+      } catch {
+        return base.avatarCorner;
+      }
+    })(),
+    avatarScale: (() => {
+      const template = (() => {
+        try {
+          return parseTemplate(raw.template ?? base.template);
+        } catch {
+          return base.template;
+        }
+      })();
+      try {
+        return parseAvatarScale(raw.avatarScale ?? base.avatarScale, template);
+      } catch {
+        return parseAvatarScale(undefined, template);
+      }
+    })(),
     music: (() => {
       try {
         return parseMusic(raw.music ?? base.music);
@@ -310,6 +343,8 @@ export async function listHistory() {
     layout: job.layout,
     template: job.template,
     avatar: job.avatar,
+    avatarCorner: job.avatarCorner,
+    avatarScale: job.avatarScale,
     music: job.music,
     highlight: job.highlight,
   }));
@@ -392,6 +427,8 @@ function readSettings(input: unknown): JobSettings & { scripts?: string[] } {
     layout: parseLayout(body.layout),
     template: parseTemplate(body.template),
     avatar: parseAvatar(body.avatar),
+    avatarCorner: parseAvatarCorner(body.avatarCorner),
+    avatarScale: parseAvatarScale(body.avatarScale, parseTemplate(body.template)),
     music: parseMusic(body.music),
     highlight: parseHighlight(body.highlight),
     captionStyle: parseCaptionStyle(body.captionStyle),
@@ -427,6 +464,8 @@ export async function startJob(id: string, input: unknown): Promise<Job> {
     layout: settings.layout,
     template: settings.template,
     avatar: settings.avatar,
+    avatarCorner: settings.avatarCorner,
+    avatarScale: settings.avatarScale,
     music: settings.music,
     highlight: settings.highlight,
     captionStyle: settings.captionStyle,

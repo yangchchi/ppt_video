@@ -22,6 +22,12 @@ export const avatars = [
   { id: "female", label: "女性", hint: "讲解" },
 ] as const;
 
+export const avatarCorners = [
+  { id: "left", label: "左" },
+  { id: "center", label: "中" },
+  { id: "right", label: "右" },
+] as const;
+
 export const templates: TemplateDef[] = [
   {
     id: "none",
@@ -34,52 +40,50 @@ export const templates: TemplateDef[] = [
     defaultAvatar: "none",
   },
   {
-    id: "business",
-    label: "现代商务",
+    id: "left",
+    label: "左布局",
     category: "经典",
     recommended: true,
     background: "1A2744",
-    slide: { x: 64, y: 100, w: 1120, h: 880 },
-    avatar: { x: 1400, y: 0, w: 520, h: 1080 },
+    slide: { x: 520, y: 80, w: 1360, h: 920 },
+    avatar: { x: 0, y: 0, w: 520, h: 1080 },
     defaultAvatar: "female",
   },
   {
-    id: "spotlight",
-    label: "醒目播报",
+    id: "right",
+    label: "右布局",
     category: "经典",
     recommended: true,
-    background: "0E1A2B",
-    slide: { x: 48, y: 48, w: 1400, h: 984 },
-    avatar: { x: 1500, y: 0, w: 420, h: 1080 },
-    defaultAvatar: "male",
-  },
-  {
-    id: "soft",
-    label: "暖色衬底",
-    category: "经典",
-    recommended: true,
-    background: "F3EFE6",
-    slide: { x: 140, y: 70, w: 1640, h: 940 },
-    avatar: null,
-    defaultAvatar: "none",
+    background: "1A2744",
+    slide: { x: 40, y: 80, w: 1360, h: 920 },
+    avatar: { x: 1400, y: 0, w: 520, h: 1080 },
+    defaultAvatar: "female",
   },
 ];
 
 export type AvatarId = (typeof avatars)[number]["id"];
+export type AvatarCorner = (typeof avatarCorners)[number]["id"];
 export type TemplateId = (typeof templates)[number]["id"];
 
 export const defaultTemplate: TemplateId = "none";
 export const defaultAvatar: AvatarId = "none";
+export const defaultAvatarCorner: AvatarCorner = "right";
+export const defaultAvatarScaleNone = 0.4;
+export const defaultAvatarScaleTemplate = 1;
 
 const retiredTemplates: Record<string, TemplateId> = {
-  lecture: "business",
-  briefing: "business",
-  release: "spotlight",
-  market: "spotlight",
-  rounds: "business",
-  line: "business",
-  news: "spotlight",
-  card: "soft",
+  lecture: "right",
+  briefing: "right",
+  release: "right",
+  market: "right",
+  rounds: "right",
+  line: "right",
+  news: "right",
+  card: "none",
+  business: "right",
+  spotlight: "right",
+  soft: "none",
+  center: "none",
 };
 
 export function templateById(id: string): TemplateDef | undefined {
@@ -112,8 +116,39 @@ export function parseAvatar(value: unknown): AvatarId {
   throw new Error("不支持的数字人。");
 }
 
-export function portraitSlot(template: TemplateDef, avatar: AvatarId): FrameRect | null {
+export function parseAvatarCorner(value: unknown): AvatarCorner {
+  if (value === undefined || value === null || value === "") return defaultAvatarCorner;
+  if (typeof value === "string" && avatarCorners.some((item) => item.id === value)) {
+    return value as AvatarCorner;
+  }
+  throw new Error("不支持的数字人布局。");
+}
+
+export function defaultAvatarScaleFor(template: TemplateId): number {
+  return template === "none" ? defaultAvatarScaleNone : defaultAvatarScaleTemplate;
+}
+
+export function parseAvatarScale(value: unknown, template: TemplateId = defaultTemplate): number {
+  if (value === undefined || value === null || value === "") return defaultAvatarScaleFor(template);
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) throw new Error("数字人比例无效。");
+  return Math.min(1.5, Math.max(0.3, Math.round(number * 100) / 100));
+}
+
+export function freeAvatarSlot(corner: AvatarCorner): FrameRect {
+  const w = 460;
+  const h = 1080;
+  if (corner === "left") return { x: 0, y: 0, w, h };
+  if (corner === "center") return { x: Math.round((1920 - w) / 2), y: 0, w, h };
+  return { x: 1920 - w, y: 0, w, h };
+}
+
+export function portraitSlot(
+  template: TemplateDef,
+  avatar: AvatarId,
+  corner: AvatarCorner = defaultAvatarCorner,
+): FrameRect | null {
   if (avatar === "none") return null;
-  if (template.id === "none") return { x: 1460, y: 0, w: 460, h: 1080 };
+  if (template.id === "none") return freeAvatarSlot(corner);
   return template.avatar;
 }

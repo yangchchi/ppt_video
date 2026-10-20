@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { videoHeight, videoWidth } from "../config.js";
 import { framePlan, videoFps, type Cue } from "./cues.js";
-import type { AvatarId, FrameRect, TemplateDef } from "../catalog.js";
+import type { AvatarCorner, AvatarId, FrameRect, TemplateDef } from "../catalog.js";
 import { portraitSlot, templateById } from "../catalog.js";
 import { type CaptionStyle, type EffectId, type LayoutId, type MusicId, transitionName } from "../options.js";
 import { runCommand } from "./command.js";
@@ -37,15 +37,18 @@ function segmentFilter(layout: LayoutId, index: number, frames: number): string 
   return `[${index}:v]${frameFilter},${tail}`;
 }
 
-const avatarDisplayScale = 0.6;
-
-function avatarPlacement(slot: FrameRect): { scale: string; x: string; y: string } {
-  const width = Math.max(1, Math.round(slot.w * avatarDisplayScale));
-  const height = Math.max(1, Math.round(slot.h * avatarDisplayScale));
-  const onRight = slot.x + slot.w / 2 >= videoWidth / 2;
+function avatarPlacement(slot: FrameRect, scale: number): { scale: string; x: string; y: string } {
+  const width = Math.max(1, Math.round(slot.w * scale));
+  const height = Math.max(1, Math.round(slot.h * scale));
+  const centerX = slot.x + slot.w / 2;
+  const centered = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.1;
   return {
     scale: `scale=${width}:${height}:force_original_aspect_ratio=decrease,format=rgba`,
-    x: onRight ? "main_w-overlay_w" : String(slot.x),
+    x: centered
+      ? "(main_w-overlay_w)/2"
+      : centerX >= videoWidth / 2
+        ? "main_w-overlay_w"
+        : String(slot.x),
     y: "main_h-overlay_h",
   };
 }
@@ -56,6 +59,7 @@ function templatePiece(
   template: TemplateDef,
   avatarLabel: string | null,
   avatarStart: number,
+  avatarScale: number,
 ): string {
   const slide = template.slide;
   if (!slide) throw new Error("模板没有画面区域。");
@@ -67,7 +71,7 @@ function templatePiece(
     `[bg${index}][sl${index}]overlay=${slide.x}:${slide.y}:format=auto[mid${index}]`,
   ];
   if (slot && avatarLabel) {
-    const place = avatarPlacement(slot);
+    const place = avatarPlacement(slot, avatarScale);
     lines.push(
       `${avatarLabel}trim=start=${avatarStart.toFixed(3)}:duration=${duration},setpts=PTS-STARTPTS,${place.scale}[av${index}]`,
     );
@@ -88,6 +92,7 @@ async function renderSlide(
   layout: LayoutId,
   template: TemplateDef,
   avatarPath: string | null,
+  avatarScale: number,
 ): Promise<void> {
   const totalFrames = frameCounts.reduce((sum, count) => sum + count, 0);
   const duration = (totalFrames / videoFps).toFixed(3);
@@ -111,6 +116,7 @@ async function renderSlide(
         template,
         useAvatar ? (images.length === 1 ? `[${avatarIndex}:v]` : `[avs${index}]`) : null,
         start,
+        avatarScale,
       );
     });
     filters.unshift(avatarLead.replace(/;$/, ""));
@@ -299,17 +305,23 @@ async function mixBed(video: string, workDir: string, track: Exclude<MusicId, "n
   await fs.rename(mixed, video);
 }
 
-async function overlayCorner(video: string, avatarPath: string): Promise<void> {
+async function overlayCorner(
+  video: string,
+  avatarPath: string,
+  corner: AvatarCorner,
+  avatarScale: number,
+): Promise<void> {
   const mixed = `${video}.corner.mp4`;
-  const slot = portraitSlot(templateById("none")!, "male");
+  const slot = portraitSlot(templateById("none")!, "male", corner);
   if (!slot) return;
+  const place = avatarPlacement(slot, avatarScale);
   await runCommand("ffmpeg", [
     "-y",
     "-i", video,
     "-c:v", "libvpx-vp9",
     "-i", avatarPath,
     "-filter_complex",
-    `[1:v]${avatarPlacement(slot).scale}[av];[0:v][av]overlay=x=${avatarPlacement(slot).x}:y=${avatarPlacement(slot).y}:format=auto:eof_action=repeat,format=yuv420p[v]`,
+    `[1:v]${place.scale}[av];[0:v][av]overlay=x=${place.x}:y=${place.y}:format=auto:eof_action=repeat,format=yuv420p[v]`,
     "-map", "[v]",
     "-map", "0:a",
     "-c:v", "libx264",
@@ -334,6 +346,8 @@ export async function composeVideo(
   templateId: string,
   avatar: AvatarId,
   avatarPath: string | null,
+  avatarCorner: AvatarCorner,
+  avatarScale: number,
   workDir: string,
 ): Promise<string> {
   if (images.length !== narrations.length) throw new Error("画面数量和语音数量不一致。");
@@ -364,7 +378,16 @@ export async function composeVideo(
       segmentAvatar = path.join(segmentDir, `talk-${String(index + 1).padStart(3, "0")}.webm`);
       await renderTalkingPortrait(avatarPath, narration.audioPath, segmentAvatar);
     }
-    await renderSlide(prepared.images, prepared.frames, narration.audioPath, segment, layout, template, segmentAvatar);
+    await renderSlide(
+      prepared.images,
+      prepared.frames,
+      narration.audioPath,
+      segment,
+      layout,
+      template,
+      segmentAvatar,
+      avatarScale,
+    );
     segments.push(segment);
   }
 
@@ -377,7 +400,7 @@ export async function composeVideo(
   if (template.slide === null && avatar !== "none" && avatarPath) {
     const clip = path.join(workDir, "talking.webm");
     await renderTalkingPortrait(avatarPath, output, clip);
-    await overlayCorner(output, clip);
+    await overlayCorner(output, clip, avatarCorner, avatarScale);
   }
   if (music !== "none") await mixBed(output, workDir, music);
   return output;

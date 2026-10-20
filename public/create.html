@@ -36,7 +36,7 @@
       </span>
     </a>
     <nav class="top-nav" aria-label="页面">
-      <a class="nav-quiet" href="/">产品介绍</a>
+      <a class="nav-quiet" href="/intro">产品介绍</a>
       <a class="nav-pill" href="/history">历史成片</a>
     </nav>
   </header>
@@ -117,7 +117,31 @@
           <fieldset class="span-2">
             <legend>数字人</legend>
             <p class="hint field-hint">数字人贴在画面下角。有旁白时在闭嘴和讲话两张图之间切换。</p>
-            <div id="avatars" class="avatar-row"></div>
+            <div class="avatar-studio">
+              <div class="avatar-studio-top">
+                <div id="avatars" class="avatar-row"></div>
+                <div id="avatar-preview-wrap" class="avatar-preview-wrap">
+                  <div id="avatar-preview" class="avatar-preview" aria-label="预览示意">
+                    <span class="avatar-preview-stage">
+                      <span class="sheet"></span>
+                      <span class="person" id="avatar-preview-person" hidden></span>
+                    </span>
+                    <strong class="avatar-preview-label">预览示意</strong>
+                  </div>
+                </div>
+              </div>
+              <div id="avatar-controls" class="avatar-controls" data-disabled="true">
+                <div class="avatar-control-row">
+                  <div id="avatar-corners" class="choice-row avatar-corners" role="group" aria-label="数字人布局"></div>
+                  <label class="avatar-scale">
+                    <span class="avatar-scale-min">30%</span>
+                    <input id="avatar-scale" type="range" min="30" max="150" step="5" value="40">
+                    <span class="avatar-scale-max">150%</span>
+                    <span id="avatar-scale-value" class="avatar-scale-value">40%</span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </fieldset>
 
           <fieldset>

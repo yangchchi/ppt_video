@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parseAvatarCorner, parseAvatarScale } from "../src/catalog.ts";
 import { defaultEffect, defaultVoice, parseEffect, parseVoice, speechProsody } from "../src/options.ts";
 
 test("转场和音色缺省时使用默认值", () => {
@@ -22,4 +23,10 @@ test("语调加快和放慢叠在一起，并限制幅度", () => {
   assert.deepEqual(speechProsody("vivid", "short"), { rate: "+22%", pitch: "+2Hz", emptySeconds: 2 });
   assert.equal(speechProsody("formal", "long").rate, "-18%");
   assert.equal(speechProsody("neutral", "auto").emptySeconds, 3);
+});
+
+test("数字人布局与比例可解析", () => {
+  assert.equal(parseAvatarCorner(""), "right");
+  assert.equal(parseAvatarScale("", "none"), 0.4);
+  assert.equal(parseAvatarScale("0.85", "left"), 0.85);
 });

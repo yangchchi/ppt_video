@@ -2,7 +2,16 @@ import express from "express";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
-import { avatars, defaultAvatar, defaultTemplate, parseAvatar, templates } from "./catalog.js";
+import {
+  avatarCorners,
+  avatars,
+  defaultAvatar,
+  defaultAvatarCorner,
+  defaultAvatarScaleNone,
+  defaultTemplate,
+  parseAvatar,
+  templates,
+} from "./catalog.js";
 import { dataDir, maxUploadMb, publicDir } from "./config.js";
 import {
   createDraft,
@@ -78,7 +87,16 @@ function sendJobError(res: express.Response, error: unknown) {
 export function createApp() {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
-  app.use(express.static(publicDir));
+
+  app.get("/", (_req, res) => {
+    res.sendFile(path.join(publicDir, "create.html"));
+  });
+
+  app.get("/intro", (_req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+
+  app.use(express.static(publicDir, { index: false }));
 
   app.get("/api/options", (_req, res) => {
     res.json({
@@ -90,6 +108,7 @@ export function createApp() {
       layouts,
       templates,
       avatars,
+      avatarCorners,
       scriptSources,
       importModes,
       captionStyles,
@@ -102,6 +121,8 @@ export function createApp() {
         layout: defaultLayout,
         template: defaultTemplate,
         avatar: defaultAvatar,
+        avatarCorner: defaultAvatarCorner,
+        avatarScale: defaultAvatarScaleNone,
         scriptSource: defaultScriptSource,
         importMode: defaultImportMode,
         captionStyle: defaultCaptionStyle,
@@ -112,7 +133,7 @@ export function createApp() {
   });
 
   app.get("/create", (_req, res) => {
-    res.sendFile(path.join(publicDir, "create.html"));
+    res.redirect(302, "/");
   });
 
   app.get("/history", (_req, res) => {

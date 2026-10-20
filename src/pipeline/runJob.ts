@@ -53,6 +53,8 @@ export async function runJob(job: Job): Promise<void> {
     job.template,
     job.avatar,
     avatarPath,
+    job.avatarCorner,
+    job.avatarScale,
     job.dir,
   );
   job.step = null;

@@ -1,4 +1,12 @@
-import { defaultAvatar, defaultTemplate, type AvatarId, type TemplateId } from "./catalog.js";
+import {
+  defaultAvatar,
+  defaultAvatarCorner,
+  defaultAvatarScaleNone,
+  defaultTemplate,
+  type AvatarCorner,
+  type AvatarId,
+  type TemplateId,
+} from "./catalog.js";
 import { emptySlideSeconds } from "./config.js";
 
 export const effects = [
@@ -204,6 +212,8 @@ export interface JobSettings {
   layout: LayoutId;
   template: TemplateId;
   avatar: AvatarId;
+  avatarCorner: AvatarCorner;
+  avatarScale: number;
   music: MusicId;
   highlight: boolean;
   captionStyle: CaptionStyle;
@@ -213,3 +223,5 @@ export interface JobSettings {
   speaker: string;
   goals: string;
 }
+
+export { defaultAvatarCorner, defaultAvatarScaleNone };

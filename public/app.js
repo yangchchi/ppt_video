@@ -47,12 +47,16 @@ let locale = "zh-CN";
 let scriptsDirty = false;
 let templateId = "none";
 let avatarId = "none";
+let avatarCorner = "right";
+let avatarScale = 0.4;
 let templateTab = "public";
 let templateCategory = "全部";
 let selectedMine = "";
 const mineKey = "ppt-video-my-templates";
 const draftKey = "ppt-video-draft-id";
 const draftFormKey = "ppt-video-draft-form";
+const scaleNoneDefault = 0.4;
+const scaleTemplateDefault = 1;
 
 function rememberDraft(id) {
   if (!id) {
@@ -104,15 +108,36 @@ function applyDraftForm(state) {
   if (state.avatar && catalog.avatars.some((item) => item.id === state.avatar)) {
     avatarId = state.avatar;
   }
+  if (state.avatarCorner === "left" || state.avatarCorner === "center" || state.avatarCorner === "right") {
+    avatarCorner = state.avatarCorner;
+  }
+  if (Number.isFinite(Number(state.avatarScale))) {
+    avatarScale = clampScale(Number(state.avatarScale));
+  }
   if (state.templateTab === "mine" || state.templateTab === "public") templateTab = state.templateTab;
   if (typeof state.selectedMine === "string") selectedMine = state.selectedMine;
   renderMarket();
   renderAvatars();
+  syncAvatarControls();
   if (Array.isArray(state.scripts) && state.scripts.length) {
     renderScripts(state.scripts);
     scriptsDirty = true;
   }
   syncOptionVisibility();
+}
+
+function clampScale(value) {
+  return Math.min(1.5, Math.max(0.3, Math.round(value * 100) / 100));
+}
+
+function defaultScaleForTemplate(id) {
+  return id === "none" ? scaleNoneDefault : scaleTemplateDefault;
+}
+
+function effectiveCorner() {
+  if (templateId === "left") return "left";
+  if (templateId === "right") return "right";
+  return avatarCorner;
 }
 
 async function restoreDraft() {
@@ -214,8 +239,12 @@ async function loadOptions() {
   choiceGroup(document.querySelector("#effects"), "effect", catalog.effects, catalog.defaults.effect, (item) => item.label);
   templateId = catalog.defaults.template || "none";
   avatarId = catalog.defaults.avatar || "none";
+  avatarCorner = catalog.defaults.avatarCorner || "right";
+  avatarScale = clampScale(Number(catalog.defaults.avatarScale ?? scaleNoneDefault));
   renderMarket();
   renderAvatars();
+  renderAvatarCorners();
+  syncAvatarControls();
   syncOptionVisibility();
 }
 
@@ -295,6 +324,68 @@ function renderAvatars() {
   `).join("");
 }
 
+function renderAvatarCorners() {
+  const corners = catalog.avatarCorners || [
+    { id: "left", label: "左" },
+    { id: "center", label: "中" },
+    { id: "right", label: "右" },
+  ];
+  const corner = effectiveCorner();
+  document.querySelector("#avatar-corners").innerHTML = corners.map((item) => `
+    <label class="choice">
+      <input type="radio" name="avatarCorner" value="${escapeHtml(item.id)}" ${item.id === corner ? "checked" : ""}>
+      <span>${escapeHtml(item.label)}</span>
+    </label>
+  `).join("");
+}
+
+function syncAvatarControls() {
+  const hasAvatar = avatarId !== "none";
+  const controls = document.querySelector("#avatar-controls");
+  const preview = document.querySelector("#avatar-preview");
+  const corners = document.querySelector("#avatar-corners");
+  const scaleInput = document.querySelector("#avatar-scale");
+  const scaleValue = document.querySelector("#avatar-scale-value");
+  const freeLayout = templateId === "none";
+  const layoutEnabled = hasAvatar && freeLayout;
+  controls.dataset.disabled = hasAvatar ? "false" : "true";
+  preview.dataset.empty = hasAvatar ? "false" : "true";
+  corners.dataset.locked = layoutEnabled ? "false" : "true";
+  [...corners.querySelectorAll("input")].forEach((input) => {
+    input.disabled = !layoutEnabled;
+    input.checked = input.value === effectiveCorner();
+  });
+  scaleInput.disabled = !hasAvatar;
+  const percent = Math.round(avatarScale * 100);
+  scaleInput.value = String(percent);
+  scaleValue.textContent = `${percent}%`;
+  updateAvatarPreview();
+}
+
+function updateAvatarPreview() {
+  const person = document.querySelector("#avatar-preview-person");
+  if (!person) return;
+  const hasAvatar = avatarId !== "none";
+  person.hidden = !hasAvatar;
+  if (!hasAvatar) return;
+  const corner = effectiveCorner();
+  const width = 18 + (avatarScale - 0.3) / 1.2 * 28;
+  person.style.width = `${width}%`;
+  if (corner === "left") {
+    person.style.left = "4%";
+    person.style.right = "auto";
+    person.style.transform = "none";
+  } else if (corner === "center") {
+    person.style.left = "50%";
+    person.style.right = "auto";
+    person.style.transform = "translateX(-50%)";
+  } else {
+    person.style.left = "auto";
+    person.style.right = "4%";
+    person.style.transform = "none";
+  }
+}
+
 function renderVoices(selected) {
   const items = catalog.voices.filter((item) => item.locale === locale);
   const current = items.some((item) => item.id === selected) ? selected : items[0]?.id;
@@ -307,6 +398,7 @@ function syncOptionVisibility() {
   scriptEditor.hidden = !editable;
   contextFields.hidden = !fromSlides;
   document.querySelector("#layout-field").hidden = templateId !== "none";
+  syncAvatarControls();
 }
 
 function payload() {
@@ -318,6 +410,8 @@ function payload() {
     layout: selectedValue("layout") || "",
     template: templateId,
     avatar: avatarId,
+    avatarCorner: effectiveCorner(),
+    avatarScale,
     music: selectedValue("music") || "none",
     highlight: selectedValue("highlight") !== "off",
     captionStyle: selectedValue("captionStyle") || "bar",
@@ -456,9 +550,15 @@ document.querySelector("#template-grid").addEventListener("click", (event) => {
     if (!item) return;
     templateId = item.templateId;
     avatarId = knownAvatar(item.avatarId);
+    if (item.avatarCorner === "left" || item.avatarCorner === "center" || item.avatarCorner === "right") {
+      avatarCorner = item.avatarCorner;
+    }
+    if (Number.isFinite(Number(item.avatarScale))) avatarScale = clampScale(Number(item.avatarScale));
+    else avatarScale = defaultScaleForTemplate(templateId);
     selectedMine = item.id;
     renderMarket();
     renderAvatars();
+    renderAvatarCorners();
     syncOptionVisibility();
     saveDraftForm();
     return;
@@ -469,8 +569,12 @@ document.querySelector("#template-grid").addEventListener("click", (event) => {
   selectedMine = "";
   const template = catalog.templates.find((item) => item.id === templateId);
   if (template) avatarId = template.defaultAvatar;
+  avatarScale = defaultScaleForTemplate(templateId);
+  if (templateId === "left") avatarCorner = "left";
+  if (templateId === "right") avatarCorner = "right";
   renderMarket();
   renderAvatars();
+  renderAvatarCorners();
   syncOptionVisibility();
   saveDraftForm();
 });
@@ -482,6 +586,20 @@ document.querySelector("#avatars").addEventListener("click", (event) => {
   selectedMine = "";
   renderAvatars();
   renderMarket();
+  syncAvatarControls();
+  saveDraftForm();
+});
+
+document.querySelector("#avatar-corners").addEventListener("change", (event) => {
+  if (event.target.name !== "avatarCorner" || templateId !== "none") return;
+  avatarCorner = event.target.value;
+  syncAvatarControls();
+  saveDraftForm();
+});
+
+document.querySelector("#avatar-scale").addEventListener("input", (event) => {
+  avatarScale = clampScale(Number(event.target.value) / 100);
+  syncAvatarControls();
   saveDraftForm();
 });
 
@@ -491,7 +609,14 @@ document.querySelector("#save-template").addEventListener("click", () => {
   if (!template) return;
   const name = `${template.label} · ${avatar?.label || "无数字人"}`;
   const items = loadMine().filter((item) => item.name !== name);
-  const saved = { id: `${Date.now()}`, name, templateId, avatarId };
+  const saved = {
+    id: `${Date.now()}`,
+    name,
+    templateId,
+    avatarId,
+    avatarCorner: effectiveCorner(),
+    avatarScale,
+  };
   items.unshift(saved);
   saveMineList(items.slice(0, 24));
   selectedMine = saved.id;
