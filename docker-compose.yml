@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3780:3780"
+    volumes:
+      - ./data:/app/data
+    environment:
+      PORT: "3780"
+    restart: unless-stopped

@@ -154,7 +154,7 @@
           </fieldset>
 
           <fieldset class="span-2">
-            <legend>转场</legend>
+            <legend>转场效果</legend>
             <div id="effects" class="choice-row"></div>
           </fieldset>
         </div>
@@ -199,7 +199,17 @@
         <li data-step="speech">合成语音</li>
         <li data-step="compose">拼接视频</li>
       </ol>
-      <p id="status-text" aria-live="polite"></p>
+      <div id="progress-panel" class="progress-panel" hidden>
+        <div class="progress-meta">
+          <span id="progress-percent">0%</span>
+          <span id="progress-clock">已用时 00:00</span>
+        </div>
+        <div class="progress-track" aria-hidden="true">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <p id="status-text" aria-live="polite"></p>
+        <p id="progress-tip" class="progress-tip"></p>
+      </div>
       <p id="job-error" class="error" role="alert" hidden></p>
       <div class="player-frame">
         <video id="player" controls hidden></video>

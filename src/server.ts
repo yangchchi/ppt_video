@@ -15,7 +15,7 @@ import {
 import { dataDir, maxUploadMb, publicDir } from "./config.js";
 import {
   createDraft,
-  deleteDraft,
+  deleteJob,
   getJob,
   hasActiveJob,
   JobError,
@@ -127,7 +127,7 @@ export function createApp() {
         importMode: defaultImportMode,
         captionStyle: defaultCaptionStyle,
         music: defaultMusic,
-        highlight: true,
+        highlight: false,
       },
     });
   });
@@ -193,7 +193,7 @@ export function createApp() {
 
   app.delete("/api/jobs/:id", async (req, res) => {
     try {
-      await deleteDraft(req.params.id);
+      await deleteJob(req.params.id);
       res.status(204).end();
     } catch (error) {
       sendJobError(res, error);

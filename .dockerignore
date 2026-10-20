@@ -1,0 +1,9 @@
+node_modules
+data
+dist
+.git
+.DS_Store
+*.mp4
+docs/superpowers
+.docs
+test

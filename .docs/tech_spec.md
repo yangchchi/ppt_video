@@ -3,12 +3,19 @@
 ## 1. 运行环境
 
 - Node.js 20+，TypeScript，ESM。
-- macOS，已安装 Microsoft PowerPoint。画面导出依赖 PowerPoint 把演示文稿存成 PDF。
-- 系统自带 Swift / PDFKit / AppKit，把 PDF 每页渲染成 PNG，并把字幕烧进画面副本。
-- 本机 `ffmpeg` 与 `ffprobe` 在 `PATH` 中，用于静音、音频拼接、画幅、垫底音乐和视频合成。
-- 语音使用 npm 包 `@andresaya/edge-tts` 调用 Edge 在线朗读，不需要 API Key。输出格式为 `audio-24khz-96kbitrate-mono-mp3`。旧的 `edge-tts` 包目前会被服务端拒绝（HTTP 403）。
+- Linux 或 macOS。画面导出依赖 LibreOffice（`soffice`）把演示文稿转成 PDF，再用 `pdftoppm`（poppler-utils）渲成 PNG。
+- `@napi-rs/canvas` + `assets/fonts/NotoSansSC-Regular.otf`（或 `SUBTITLE_FONT` / 系统 Noto CJK）绘制字幕与高亮框。
+- 本机 `ffmpeg` 与 `ffprobe` 在 `PATH` 中，用于静音、音频拼接、画幅、垫底音乐、数字人口型和视频合成。
+- 语音使用 npm 包 `@andresaya/edge-tts` 调用 Edge 在线朗读，不需要 API Key。输出格式为 `audio-24khz-96kbitrate-mono-mp3`。
 
-不使用 LibreOffice，也不调用外部大模型。本机未安装 LibreOffice，且 PowerPoint 对上传的 `.pptx` 还原更完整。
+不调用外部大模型。LibreOffice 对复杂版式的还原可能与 Microsoft PowerPoint 有差别，以服务器可部署为优先。
+
+推荐部署：项目根目录 `Dockerfile` / `docker-compose.yml`（镜像内含 LibreOffice Impress、poppler-utils、ffmpeg、fonts-noto-cjk）。
+
+本机开发依赖示例：
+
+- macOS：`brew install libreoffice poppler ffmpeg`
+- Debian/Ubuntu：`apt install libreoffice-impress poppler-utils ffmpeg fonts-noto-cjk`
 
 ## 2. 进程与目录
 
@@ -18,6 +25,8 @@
 .docs/func_spec.md
 .docs/tech_spec.md
 package.json
+Dockerfile
+docker-compose.yml
 tsconfig.json
 src/index.ts                 启动 HTTP
 src/server.ts                路由与静态页面
@@ -27,20 +36,18 @@ src/options.ts               成片选项与语速合成
 src/catalog.ts               公共模板与数字人目录
 src/pipeline/extractNotes.ts 从 pptx 读取备注和页面文字
 src/pipeline/script.ts       由页面文字或备注得到旁白
-src/pipeline/renderSlides.ts PowerPoint → PDF → PNG
+src/pipeline/renderSlides.ts LibreOffice → PDF → pdftoppm PNG
 src/pipeline/synthesize.ts   脚本 → mp3
+src/pipeline/subtitles.ts    canvas 字幕
+src/pipeline/talk.ts         数字人口型
 src/pipeline/compose.ts      PNG + mp3 → mp4
 src/pipeline/runJob.ts       串联渲染步骤
-native/pdf-to-png.swift      PDFKit 渲染
-native/burn-subtitle.swift   字幕
-native/draw-avatar.swift     数字人肖像
-native/talk-avatar.swift     按音量在闭嘴图和讲话图之间切换
+assets/avatars/              预切透明数字人 PNG
+assets/fonts/                字幕字体
 public/                      首页与历史页
 test/
 data/jobs/<id>/              运行时产物，不提交
 data/previews/               试听缓存，不提交
-data/avatars/                数字人肖像缓存，不提交
-data/bin/pdf-to-png          首次渲染时编译的辅助程序
 ```
 
 `data/` 在进程启动时创建。任务目录：
@@ -49,6 +56,7 @@ data/bin/pdf-to-png          首次渲染时编译的辅助程序
 input.pptx
 job.json
 slides.pdf
+lo-profile/                 LibreOffice 用户配置（任务内隔离）
 slides/slide-001.png
 audio/slide-001.mp3
 segments/slide-001.mp4
@@ -60,7 +68,7 @@ output.mp4
 
 `draft`：已上传并读出文字，等待用户确认。不进入渲染队列。
 
-`queued` 与 `running`：正在等待或占用渲染。全局 `Promise` 链保证同一时刻只有一个任务占用 PowerPoint。
+`queued` 与 `running`：正在等待或占用渲染。全局 `Promise` 链保证同一时刻只有一个任务占用 LibreOffice。
 
 `done` 与 `failed`：渲染结束。失败时删除 `output.mp4`。
 
@@ -73,15 +81,7 @@ output.mp4
 1. **校验**  
    确认 zip 内存在 `ppt/presentation.xml`。页数必须与配置稿一致，且在 1 到 80 之间。旁白使用配置稿里已经确定的 `script`，不用渲染阶段重新从备注覆盖用户改过的文本。
 2. **导出画面**  
-AppleScript 分三步，避免 PowerPoint 把参数解析错：
-
-1. 在 `tell` 之外把 pptx 路径转成 alias。
-2. 先 `touch` 出空的 PDF，再让 `save` 写入这个已存在的文件。
-3. 在 `tell application "Microsoft PowerPoint"` 里 `open` alias，再 `save active presentation in outFile as save as PDF`，然后不保存关闭。
-
-`open` 的返回值在当前 PowerPoint 上不可用。不要把 `POSIX file` 直接写进 `save ... as save as PDF`，否则 `as` 会被当成类型转换。
-
-编译并调用 `pdf-to-png`，宽度 1920 像素。用 `CGBitmapContext` 按 1x 像素渲染，避免 Retina 把图放大到 2x。PDF 页数必须等于幻灯片页数，否则失败。
+   `soffice --headless --convert-to pdf`（可用 `SOFFICE_PATH` 指定可执行文件）。导出前按字体栈探测本机可用字体：`Noto Sans SC` → `PingFang SC` → `Microsoft YaHei`（类似 CSS `font-family`）。优先使用仓库内 `assets/fonts/NotoSansSC-Regular.otf`；写好 `fonts.conf`（整条 prefer 链）与 LibreOffice `registrymodifications.xcu`（把常见中英文字体替换为栈中第一个可用字体），并设置 `FONTCONFIG_FILE`、`SAL_USE_VCLPLUGIN=gen`，避免缺字变成方框。用户配置目录落在任务目录的 `lo-profile/`，避免并发锁。输出重命名为 `slides.pdf`。再用 `pdftoppm -png -scale-to-x 1920` 写出页面，并规范为 `slide-001.png` 起。PDF 页数必须等于幻灯片页数，否则失败。
 3. **语音**  
    有脚本：`EdgeTTS.generate`，音色、`rate`、`pitch` 来自上传选项。超过 500 字按 `。！？!?` 和换行切开，逐段合成，再用 ffmpeg 重新编码接成一页音频。  
    无脚本：`anullsrc` 生成该时长档位对应的静音 MP3。
@@ -90,15 +90,15 @@ AppleScript 分三步，避免 PowerPoint 把参数解析错：
 
    - 未选模板时：`plain` 为 `scale` 后白边补到 1920×1080；`stage` 为一份放大裁切并 `boxblur`、另一份缩小后居中；`push` 为放大到 2304×1296 后用 `zoompan` 推到 1.05 倍。
    - 选了模板时：`color` 铺模板背景，幻灯片缩进 `slide` 矩形，数字人按 `avatar` 矩形固定 `overlay`，不再上下浮动。表演视频按该页旁白生成，字幕分段时用 `trim` 对齐口型。
-   - 未选模板但选了数字人时，成片完成转场后，再按整段成片音轨把表演贴到右下角。`overlay` 的 `x` 为 `main_w-overlay_w`，`y` 为 `main_h-overlay_h`。
+   - 未选模板但选了数字人时，成片完成转场后，再按整段成片音轨把表演贴到右下角。
 
-肖像源图在 `assets/avatars/`：`male.jpg`、`female.jpg` 是闭嘴，`male-talk.jpg`、`female-talk.jpg` 是讲话。`draw-avatar.swift` 用人物蒙版抠成带透明通道的 PNG，缓存在 `data/avatars/`。成片按旁白音量在两张图之间切换：连续相同口型收成时段后，用 ffmpeg concat 直接拼成宽 480 的 VP9，不再写 ProRes 中间片。可选 `male`、`female`。旧的 `host`、`lecturer`、`medic` 读成男性，`advisor` 读成女性。
+数字人素材在 `assets/avatars/`：`male.png` / `male-talk.png`、`female.png` / `female-talk.png`（已抠透明通道）。成片按旁白音量在闭嘴图与讲话图之间切换，用 ffmpeg concat 拼成宽 480 的 VP9。可选 `male`、`female`。旧的 `host`、`lecturer`、`medic` 读成男性，`advisor` 读成女性。
 
    视频 `-c:v libx264 -tune stillimage`，音频 AAC 160 kbps、44100 Hz、双声道，30 fps。直接切换或只有一页时，用 concat demuxer 以 `-c copy` 连接。其他转场用 `xfade` 和 `acrossfade`，转场 0.5 秒；短于 0.12 秒则该处改为 concat。
 
-   打开背景音乐时，用三路正弦波（约 174 Hz、220 Hz、262 Hz）做成 12 秒垫底，循环后以 `amix=normalize=0` 混入成片，垫底音量 0.16。视频码流复制，只重编码音频。
+   打开背景音乐时，用三路正弦波做成垫底，循环后以 `amix=normalize=0` 混入成片。
 
-字幕按行烧进画面副本。先用同一套字体度量把脚本折成单行，再根据 Edge 语音的词时间戳决定每一行的起止。每一行画面的帧数加起来等于该页音频时长对应的帧数。同一时刻只烧一行字幕。本机 ffmpeg 没有 `subtitles` / `drawtext`，因此用 `native/burn-subtitle.swift` 和苹方字体绘制黑底白字：文字居中放在半透明黑底圆角色块上。打开重点高亮时，同一程序按形状在页面中的相对位置描一圈圆角框；坐标来自幻灯片 XML 的 `a:off` / `a:ext`，再按导出 PNG 的宽高换算。缩略图接口仍返回未加字幕的原图。
+字幕按行烧进画面副本。用 `@napi-rs/canvas` 与仓库字体折行并绘制；样式 `bar` 为黑底白字，`board` 为白底黑字。打开重点高亮时按形状相对位置描圆角框。缩略图接口仍返回未加字幕的原图。
 
 ## 5. 文字提取与脚本
 
@@ -135,11 +135,7 @@ AppleScript 分三步，避免 PowerPoint 把参数解析错：
 
 `:id` 必须是 UUID。非法 id 返回 404。
 
-`draft` 的状态 JSON 在原有字段之外包含 `bytes`、`importMode`、`scriptSource`、`tone`、`pace`、`layout`、`music`、`audience`、`speaker`、`goals`。每一页包含 `title`、`bullets`、`note`、`script`、`empty`。
-
 上传限制见 `MAX_UPLOAD_MB`，默认 50。非 `.pptx` 返回 400。已有渲染任务时开始生成返回 409。
-
-首页在配置完成后每秒轮询 `GET /api/jobs/:id`。存在 `queued` 或 `running` 任务时禁用生成和试听以外的新渲染。
 
 ## 7. 配置
 
@@ -150,24 +146,25 @@ AppleScript 分三步，避免 PowerPoint 把参数解析错：
 | `EMPTY_SLIDE_SECONDS` | `3` | 自动档位的空脚本停留秒数 |
 | `MAX_UPLOAD_MB` | `50` | 上传上限 |
 | `MAX_SLIDES` | `80` | 页数上限 |
+| `SOFFICE_PATH` | （自动探测） | LibreOffice 可执行文件 |
+| `SUBTITLE_FONT` | `assets/fonts/NotoSansSC-Regular.otf` 等 | 字幕字体文件 |
 
 ## 8. 错误处理
 
-流水线错误带中文 `message`，写入任务的 `error`，`status=failed`。PowerPoint、ffmpeg、语音的 stderr 追加在消息末尾，最多 500 字。
+流水线错误带中文 `message`，写入任务的 `error`，`status=failed`。LibreOffice、pdftoppm、ffmpeg、语音的 stderr 追加在消息末尾，最多 500 字。
 
 配置稿创建失败时删除任务目录，HTTP 400，正文 `{ error }`。
 
-AppleScript 字符串只传入任务目录内的路径，路径中的 `\` 和 `"` 会转义。
-
 ## 9. 测试
 
-单元测试不启动 PowerPoint，也不访问语音服务。
+单元测试不启动 LibreOffice，也不访问语音服务。
 
 - `test/extractNotes.test.ts`：备注页序、占位符，以及标题和要点。
 - `test/script.test.ts`：三种脚本来源和补充说明出现的页。
 - `test/options.test.ts`：默认值、未知选项，以及语速钳制。
+- `test/subtitles.test.ts`：字幕折行。
 
-手工验收按功能规格第 10 节，对本地服务上传样例。
+手工验收按功能规格第 10 节。Docker：`docker compose up --build`。
 
 ## 10. 启动
 
@@ -178,3 +175,7 @@ npm run dev
 ```
 
 浏览器打开 `http://127.0.0.1:3780`。
+
+```
+docker compose up --build
+```

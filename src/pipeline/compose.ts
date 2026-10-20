@@ -349,6 +349,7 @@ export async function composeVideo(
   avatarCorner: AvatarCorner,
   avatarScale: number,
   workDir: string,
+  onProgress?: (current: number, total: number) => void,
 ): Promise<string> {
   if (images.length !== narrations.length) throw new Error("画面数量和语音数量不一致。");
   const captionDir = path.join(workDir, "captions");
@@ -360,6 +361,7 @@ export async function composeVideo(
   const segments: string[] = [];
 
   for (let index = 0; index < images.length; index += 1) {
+    onProgress?.(index + 1, images.length);
     const narration = narrations[index];
     const audioDuration = await probeDuration(narration.audioPath);
     const prepared = await slideFrames(

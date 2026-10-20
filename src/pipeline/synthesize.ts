@@ -101,6 +101,7 @@ export async function synthesizeNotes(
   workDir: string,
   voice = ttsVoice,
   prosody: SpeechProsody = speechProsody("neutral", "auto"),
+  onProgress?: (current: number, total: number) => void,
 ): Promise<Narration[]> {
   if (notes.length !== images.length) throw new Error("备注数量和画面数量不一致。");
   const audioDir = path.join(workDir, "audio");
@@ -108,6 +109,7 @@ export async function synthesizeNotes(
   const narrations: Narration[] = [];
 
   for (let index = 0; index < notes.length; index += 1) {
+    onProgress?.(index + 1, notes.length);
     const filePath = path.join(audioDir, `slide-${String(index + 1).padStart(3, "0")}.mp3`);
     const note = notes[index].trim();
     if (!note) {

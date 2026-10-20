@@ -147,9 +147,9 @@ export function parseCaptionStyle(value: unknown): CaptionStyle {
 }
 
 export function parseHighlight(value: unknown): boolean {
-  if (value === undefined || value === null || value === "") return true;
-  if (value === false || value === "false" || value === "0") return false;
-  if (value === true || value === "true" || value === "1") return true;
+  if (value === undefined || value === null || value === "") return false;
+  if (value === false || value === "false" || value === "0" || value === "off") return false;
+  if (value === true || value === "true" || value === "1" || value === "on") return true;
   throw new Error("重点高亮选项无效。");
 }
 
