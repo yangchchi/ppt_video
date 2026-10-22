@@ -1,8 +1,21 @@
 {
   "name": "ppt-video",
   "version": "1.0.0",
+  "description": "幻演 MotionDeck — 将 PPT 转为带旁白、字幕与数字人的讲解视频",
   "private": true,
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangchchi/ppt_video.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yangchchi/ppt_video/issues"
+  },
+  "homepage": "https://github.com/yangchchi/ppt_video#readme",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",

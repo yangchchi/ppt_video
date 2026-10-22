@@ -3,3 +3,10 @@ dist/
 data/
 *.mp4
 .DS_Store
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log
+.playwright-mcp/

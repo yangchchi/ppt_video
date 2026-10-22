@@ -27,22 +27,141 @@ guard let source = NSImage(contentsOf: inputURL),
 let width = sourceImage.width
 let height = sourceImage.height
 
-func wrap(_ paragraph: String, font: NSFont, maxWidth: CGFloat) -> [String] {
+let sentenceMarks = Set(Array("。！？!?…"))
+let clauseMarks = Set(Array("，、；：,;:"))
+let closingMarks = Set(Array("\"”」』）)]》〉"))
+let openingMarks = Set(Array("\"“「『（([《〈"))
+
+func textWidth(_ value: String, font: NSFont) -> CGFloat {
+  (value as NSString).size(withAttributes: [.font: font]).width
+}
+
+func fits(_ value: String, font: NSFont, maxWidth: CGFloat) -> Bool {
+  value.isEmpty || textWidth(value, font: font) <= maxWidth
+}
+
+func isAsciiWordChar(_ ch: Character) -> Bool {
+  ch.isASCII && (ch.isLetter || ch.isNumber || ch == "_" || ch == "+" || ch == "-" || ch == ".")
+}
+
+func splitKeepingDelimiters(_ paragraph: String, marks: Set<Character>) -> [String] {
   if paragraph.isEmpty { return [""] }
+  var parts: [String] = []
+  var current = ""
+  let chars = Array(paragraph)
+  var index = 0
+  while index < chars.count {
+    let ch = chars[index]
+    current.append(ch)
+    if marks.contains(ch) {
+      var next = index + 1
+      while next < chars.count && closingMarks.contains(chars[next]) {
+        current.append(chars[next])
+        next += 1
+      }
+      parts.append(current)
+      current = ""
+      index = next
+      continue
+    }
+    index += 1
+  }
+  if !current.isEmpty { parts.append(current) }
+  return parts
+}
+
+func hardWrap(_ paragraph: String, font: NSFont, maxWidth: CGFloat) -> [String] {
+  if paragraph.isEmpty { return [""] }
+  if fits(paragraph, font: font, maxWidth: maxWidth) { return [paragraph] }
   var lines: [String] = []
   var current = ""
-  for character in paragraph {
-    let next = current + String(character)
-    let nextWidth = (next as NSString).size(withAttributes: [.font: font]).width
-    if nextWidth > maxWidth && !current.isEmpty {
-      lines.append(current)
-      current = String(character)
+  let chars = Array(paragraph)
+  var index = 0
+  while index < chars.count {
+    let ch = chars[index]
+    let next = current + String(ch)
+    if !current.isEmpty && !fits(next, font: font, maxWidth: maxWidth) {
+      var breakAt = current.count
+      let currentChars = Array(current)
+      for lookback in stride(from: currentChars.count - 1, through: 1, by: -1) {
+        let left = String(currentChars[..<lookback])
+        let rightFirst = currentChars[lookback]
+        if openingMarks.contains(currentChars[lookback - 1]) { continue }
+        if closingMarks.contains(rightFirst) || sentenceMarks.contains(rightFirst) || clauseMarks.contains(rightFirst) {
+          continue
+        }
+        if currentChars[lookback - 1] == " " || clauseMarks.contains(currentChars[lookback - 1]) || sentenceMarks.contains(currentChars[lookback - 1]) {
+          breakAt = lookback
+          break
+        }
+        if isAsciiWordChar(currentChars[lookback - 1]) != isAsciiWordChar(rightFirst) {
+          breakAt = lookback
+          break
+        }
+      }
+      if breakAt <= 0 || breakAt >= currentChars.count {
+        lines.append(current)
+        current = String(ch)
+      } else {
+        lines.append(String(currentChars[..<breakAt]))
+        current = String(currentChars[breakAt...]) + String(ch)
+        if !fits(current, font: font, maxWidth: maxWidth) {
+          let overflow = Array(current)
+          lines.append(String(overflow.dropLast()))
+          current = String(overflow.last!)
+        }
+      }
     } else {
       current = next
     }
+    index += 1
+  }
+  if !current.isEmpty { lines.append(current) }
+  return lines.filter { !$0.isEmpty }
+}
+
+func packUnits(_ units: [String], font: NSFont, maxWidth: CGFloat) -> [String] {
+  var lines: [String] = []
+  var current = ""
+  for unit in units {
+    let trimmed = unit
+    if trimmed.isEmpty { continue }
+    if fits(trimmed, font: font, maxWidth: maxWidth) {
+      let merged = current + trimmed
+      if current.isEmpty {
+        current = trimmed
+      } else if fits(merged, font: font, maxWidth: maxWidth) {
+        current = merged
+      } else {
+        lines.append(current)
+        current = trimmed
+      }
+      continue
+    }
+    if !current.isEmpty {
+      lines.append(current)
+      current = ""
+    }
+    lines.append(contentsOf: hardWrap(trimmed, font: font, maxWidth: maxWidth))
   }
   if !current.isEmpty { lines.append(current) }
   return lines
+}
+
+func wrap(_ paragraph: String, font: NSFont, maxWidth: CGFloat) -> [String] {
+  if paragraph.isEmpty { return [""] }
+  var lines: [String] = []
+  for sentence in splitKeepingDelimiters(paragraph, marks: sentenceMarks) {
+    let piece = sentence
+    if piece.trimmingCharacters(in: .whitespaces).isEmpty { continue }
+    if fits(piece, font: font, maxWidth: maxWidth) {
+      lines.append(piece)
+      continue
+    }
+    let clauses = splitKeepingDelimiters(piece, marks: clauseMarks)
+    lines.append(contentsOf: packUnits(clauses, font: font, maxWidth: maxWidth))
+  }
+  return lines.isEmpty ? [paragraph] : lines
 }
 
 func subtitleFont(size: CGFloat) -> NSFont {

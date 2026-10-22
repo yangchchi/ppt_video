@@ -18,6 +18,11 @@ const submit = document.querySelector("#submit");
 const formError = document.querySelector("#form-error");
 const jobSection = document.querySelector("#job");
 const statusText = document.querySelector("#status-text");
+const progressPanel = document.querySelector("#progress-panel");
+const progressPercent = document.querySelector("#progress-percent");
+const progressClock = document.querySelector("#progress-clock");
+const progressBar = document.querySelector("#progress-bar");
+const progressTip = document.querySelector("#progress-tip");
 const jobError = document.querySelector("#job-error");
 const player = document.querySelector("#player");
 const download = document.querySelector("#download");
@@ -32,14 +37,40 @@ const contextFields = document.querySelector("#context-fields");
 
 const stepOrder = ["validate", "render", "speech", "compose"];
 const stepLabel = {
-  queued: "排队中，等待 PowerPoint 空闲。",
+  queued: "排队中，等待导出空闲。页数较多时前面的任务结束得稍慢一些。",
   validate: "正在核对页数和脚本。",
-  render: "正在用 PowerPoint 导出幻灯片画面。",
+  render: "正在导出幻灯片画面。复杂版式会多花一点时间，属正常现象。",
   speech: "正在按语调和时长合成旁白。",
   compose: "正在按画幅和转场拼成视频。",
-  done: "视频已生成。",
+  done: "视频已生成，可以预览和下载。",
   failed: "转换失败。",
 };
+const waitTips = [
+  "页数越多，配音和拼接越久；进度条会随每一页推进。",
+  "导出画面时整份文稿会一次性转换，看起来停顿一下是正常的。",
+  "可以先浏览下方已就绪的页面脚本，不用干等。",
+  "成片后可直接在线预览，再决定是否下载。",
+  "背景音乐和数字人会在拼接阶段一起处理。",
+];
+
+function formatElapsed(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function estimateSeconds(job) {
+  const pages = Math.max(1, Number(job.slideCount) || 1);
+  // 粗估：导出约 8s + 每页配音 4s + 每页拼接 5s
+  return 12 + pages * 9;
+}
+
+function statusMessage(job) {
+  if (job.status === "failed") return stepLabel.failed;
+  if (job.progress?.detail) return job.progress.detail;
+  return stepLabel[job.step] || stepLabel[job.status] || "正在处理。";
+}
 
 let catalog = null;
 let draft = null;
@@ -706,9 +737,42 @@ function renderSteps(job) {
   const current = stepOrder.indexOf(job.step);
   for (const item of steps) {
     const index = stepOrder.indexOf(item.dataset.step);
-    item.classList.toggle("active", job.status === "running" && index === current);
+    item.classList.toggle("active", (job.status === "running" || job.status === "queued") && index === current);
     item.classList.toggle("done", job.status === "done" || (current > index && index !== -1));
   }
+}
+
+function renderProgress(job, startedAtMs, displayPercent) {
+  const waiting = job.status === "queued" || job.status === "running";
+  progressPanel.hidden = !waiting && job.status !== "done";
+  if (job.status === "failed") progressPanel.hidden = true;
+
+  const serverPercent = Number(job.progress?.percent);
+  let percent = Number.isFinite(serverPercent) ? serverPercent : displayPercent;
+  if (job.status === "done") percent = 100;
+  if (job.status === "queued") percent = Math.max(percent, 1);
+  // 导出阶段用客户端缓升，避免长时间停在同一百分比
+  if (waiting && job.step === "render" && (!Number.isFinite(serverPercent) || serverPercent < displayPercent)) {
+    percent = displayPercent;
+  } else if (waiting && Number.isFinite(serverPercent)) {
+    percent = Math.max(serverPercent, displayPercent);
+  }
+  percent = Math.max(0, Math.min(100, Math.round(percent)));
+
+  progressPercent.textContent = `${percent}%`;
+  progressBar.style.width = `${percent}%`;
+  const elapsed = Date.now() - startedAtMs;
+  const eta = estimateSeconds(job) * 1000;
+  if (waiting) {
+    const remain = Math.max(0, eta - elapsed);
+    progressClock.textContent = percent >= 8 && remain > 5000
+      ? `已用时 ${formatElapsed(elapsed)} · 大约还要 ${formatElapsed(remain)}`
+      : `已用时 ${formatElapsed(elapsed)}`;
+  } else if (job.status === "done") {
+    progressClock.textContent = `总用时 ${formatElapsed(elapsed)}`;
+  }
+  statusText.textContent = statusMessage(job);
+  return percent;
 }
 
 function watch(id) {
@@ -716,16 +780,51 @@ function watch(id) {
   player.hidden = true;
   download.hidden = true;
   jobError.hidden = true;
+  progressPanel.hidden = false;
   notes.innerHTML = "";
   notesTitle.hidden = true;
+  progressTip.textContent = waitTips[0];
+  progressBar.style.width = "0%";
+  progressPercent.textContent = "0%";
+
+  const localStart = Date.now();
+  let tipIndex = 0;
+  let displayPercent = 0;
+  let lastStep = null;
+  let latestJob = { status: "queued", slideCount: draft?.slideCount || 1, startedAt: null, progress: null };
+  let startedAtMs = localStart;
+
+  const tipTimer = setInterval(() => {
+    tipIndex = (tipIndex + 1) % waitTips.length;
+    if (latestJob.status === "queued" || latestJob.status === "running") {
+      progressTip.textContent = waitTips[tipIndex];
+    }
+  }, 8000);
+
+  const tickTimer = setInterval(() => {
+    if (latestJob.status !== "queued" && latestJob.status !== "running") return;
+    if (latestJob.status === "running" && latestJob.step === "render") {
+      displayPercent = Math.min(26, displayPercent + 0.35);
+    }
+    displayPercent = renderProgress(latestJob, startedAtMs, displayPercent);
+  }, 1000);
 
   const timer = setInterval(async () => {
     const response = await fetch(`/api/jobs/${id}`);
     const job = await response.json();
+    latestJob = job;
+    startedAtMs = job.startedAt ? Date.parse(job.startedAt) || localStart : localStart;
+
+    if (job.step !== lastStep) {
+      lastStep = job.step;
+      if (job.step === "render") displayPercent = Math.max(displayPercent, 12);
+      if (job.step === "speech") displayPercent = Math.max(displayPercent, 28);
+      if (job.step === "compose") displayPercent = Math.max(displayPercent, 70);
+    }
+
     renderSteps(job);
-    statusText.textContent = job.status === "failed"
-      ? stepLabel.failed
-      : (stepLabel[job.step] || stepLabel[job.status] || "");
+    displayPercent = renderProgress(job, startedAtMs, displayPercent);
+
     const slidesReady = job.status === "done" || job.step === "speech" || job.step === "compose";
     if (slidesReady && job.slides?.length && notes.childElementCount === 0) {
       notesTitle.hidden = false;
@@ -739,6 +838,10 @@ function watch(id) {
     }
     if (job.status === "done") {
       clearInterval(timer);
+      clearInterval(tipTimer);
+      clearInterval(tickTimer);
+      renderProgress(job, startedAtMs, 100);
+      progressTip.textContent = "可以预览成片，或下载 MP4 分享。";
       player.hidden = false;
       player.src = `/api/jobs/${id}/video`;
       download.hidden = false;
@@ -749,6 +852,9 @@ function watch(id) {
     }
     if (job.status === "failed") {
       clearInterval(timer);
+      clearInterval(tipTimer);
+      clearInterval(tickTimer);
+      progressPanel.hidden = true;
       jobError.hidden = false;
       jobError.textContent = job.error || "转换失败。";
       submit.disabled = false;

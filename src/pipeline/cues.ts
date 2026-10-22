@@ -17,6 +17,11 @@ function compact(value: string): string[] {
   return [...value.replace(/\s+/g, "")];
 }
 
+/** Edge TTS wordBoundaries usually omit punctuation; do not spend spoken time on it. */
+function isSkippableMark(ch: string): boolean {
+  return /\p{P}|\p{S}/u.test(ch);
+}
+
 function proportional(lines: string[], audioDuration: number): Cue[] {
   const weights = lines.map((line) => Math.max(1, compact(line).length));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -58,10 +63,19 @@ export function alignLines(lines: string[], words: TimedWord[], audioDuration: n
         cursor += 1;
         continue;
       }
+      if (isSkippableMark(needed[matched])) {
+        matched += 1;
+        continue;
+      }
+      if (isSkippableMark(spoken[cursor].ch)) {
+        end = spoken[cursor].end;
+        cursor += 1;
+        continue;
+      }
       end = spoken[cursor].end;
       cursor += 1;
-      matched += 1;
     }
+    while (matched < needed.length && isSkippableMark(needed[matched])) matched += 1;
     if (index === usable.length - 1 || end <= start) end = Math.max(end, start);
     cues.push({ text: usable[index], start, end });
     start = cues[cues.length - 1].end;

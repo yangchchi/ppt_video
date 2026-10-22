@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseAvatarCorner, parseAvatarScale } from "../src/catalog.ts";
-import { defaultEffect, defaultVoice, parseEffect, parseVoice, speechProsody } from "../src/options.ts";
+import {
+  defaultEffect,
+  defaultVoice,
+  effects,
+  parseEffect,
+  parseVoice,
+  speechProsody,
+  transitionName,
+} from "../src/options.ts";
 
 test("转场和音色缺省时使用默认值", () => {
   assert.equal(parseEffect(undefined), defaultEffect);
@@ -15,8 +23,22 @@ test("拒绝未知转场和音色", () => {
 
 test("接受页面提供的转场和音色", () => {
   assert.equal(parseEffect("wipe"), "wipe");
+  assert.equal(parseEffect("dissolve"), "dissolve");
+  assert.equal(parseEffect("blinds"), "blinds");
   assert.equal(parseVoice("zh-CN-YunxiNeural"), "zh-CN-YunxiNeural");
   assert.equal(parseVoice("zh-HK-HiuMaanNeural"), "zh-HK-HiuMaanNeural");
+});
+
+test("精选转场映射到 ffmpeg xfade", () => {
+  assert.equal(transitionName("cut"), null);
+  assert.equal(transitionName("fade"), "fade");
+  assert.equal(transitionName("dissolve"), "dissolve");
+  assert.equal(transitionName("fadeblack"), "fadeblack");
+  assert.equal(transitionName("zoomin"), "zoomin");
+  assert.equal(transitionName("split"), "vertopen");
+  assert.equal(transitionName("cover"), "coverleft");
+  assert.equal(transitionName("blinds"), "hlslice");
+  assert.equal(effects.length, 11);
 });
 
 test("语调加快和放慢叠在一起，并限制幅度", () => {

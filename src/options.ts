@@ -13,8 +13,14 @@ export const effects = [
   { id: "cut", label: "直接切换" },
   { id: "fade", label: "淡入淡出" },
   { id: "slide", label: "向左滑入" },
-  { id: "wipe", label: "擦除" },
+  { id: "wipe", label: "向左擦除" },
   { id: "circle", label: "圆形展开" },
+  { id: "dissolve", label: "溶解" },
+  { id: "fadeblack", label: "淡入黑" },
+  { id: "zoomin", label: "缩放" },
+  { id: "split", label: "劈裂" },
+  { id: "cover", label: "推入" },
+  { id: "blinds", label: "百叶窗" },
 ] as const;
 
 export const languages = [
@@ -95,12 +101,19 @@ export const defaultScriptSource: ScriptSource = "notes";
 export const defaultImportMode: ImportMode = "static";
 export const defaultCaptionStyle: CaptionStyle = "bar";
 export const defaultMusic: MusicId = "none";
+export const defaultHighlight = false;
 
 const xfadeName: Record<Exclude<EffectId, "cut">, string> = {
   fade: "fade",
   slide: "slideleft",
   wipe: "wipeleft",
   circle: "circleopen",
+  dissolve: "dissolve",
+  fadeblack: "fadeblack",
+  zoomin: "zoomin",
+  split: "vertopen",
+  cover: "coverleft",
+  blinds: "hlslice",
 };
 
 export function transitionName(effect: EffectId): string | null {
@@ -147,9 +160,9 @@ export function parseCaptionStyle(value: unknown): CaptionStyle {
 }
 
 export function parseHighlight(value: unknown): boolean {
-  if (value === undefined || value === null || value === "") return true;
-  if (value === false || value === "false" || value === "0") return false;
-  if (value === true || value === "true" || value === "1") return true;
+  if (value === undefined || value === null || value === "") return defaultHighlight;
+  if (value === false || value === "false" || value === "0" || value === "off") return false;
+  if (value === true || value === "true" || value === "1" || value === "on") return true;
   throw new Error("重点高亮选项无效。");
 }
 

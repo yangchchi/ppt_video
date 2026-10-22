@@ -6,6 +6,7 @@ import {
   defaultAvatarCorner,
   defaultCaptionStyle,
   defaultEffect,
+  defaultHighlight,
   defaultImportMode,
   defaultLayout,
   defaultMusic,
@@ -42,6 +43,7 @@ import {
   parseAvatarScale,
   parseTemplate,
 } from "./catalog.js";
+import { log, logError } from "./log.js";
 import { extractDeck, type SlideCopy, type SlideRegion } from "./pipeline/extractNotes.js";
 import { buildNarration, type ScriptContext } from "./pipeline/script.js";
 import { runJob } from "./pipeline/runJob.js";
@@ -68,17 +70,41 @@ export interface SlideInfo {
   empty: boolean;
 }
 
+export interface JobProgress {
+  percent: number;
+  detail: string;
+  current: number;
+  total: number;
+}
+
 export interface Job extends JobSettings {
   id: string;
   filename: string;
   bytes: number;
   createdAt: string;
+  startedAt: string | null;
   status: JobStatus;
   step: JobStep | null;
+  progress: JobProgress | null;
   slideCount: number;
   slides: SlideInfo[];
   error: string | null;
   dir: string;
+}
+
+export function setJobProgress(
+  job: Job,
+  percent: number,
+  detail: string,
+  current = 0,
+  total = 0,
+): void {
+  job.progress = {
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
+    detail,
+    current,
+    total,
+  };
 }
 
 const jobs = new Map<string, Job>();
@@ -128,6 +154,8 @@ export function toPublicJob(job: Job) {
     createdAt: job.createdAt,
     status: job.status,
     step: job.step,
+    startedAt: job.startedAt,
+    progress: job.progress,
     slideCount: job.slideCount,
     effect: job.effect,
     voice: job.voice,
@@ -179,7 +207,7 @@ function defaults(): JobSettings {
     avatarCorner: defaultAvatarCorner,
     avatarScale: parseAvatarScale(undefined, defaultTemplate),
     music: defaultMusic,
-    highlight: true,
+    highlight: defaultHighlight,
     captionStyle: defaultCaptionStyle,
     scriptSource: defaultScriptSource,
     importMode: defaultImportMode,
@@ -214,8 +242,17 @@ function hydrate(raw: Partial<Job> & { id: string; dir: string }): Job {
     filename: raw.filename ?? "未命名.pptx",
     bytes: raw.bytes ?? 0,
     createdAt: raw.createdAt ?? new Date().toISOString(),
+    startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null,
     status: raw.status ?? "failed",
     step: raw.step ?? null,
+    progress: raw.progress && typeof raw.progress === "object"
+      ? {
+        percent: Number((raw.progress as JobProgress).percent) || 0,
+        detail: String((raw.progress as JobProgress).detail ?? ""),
+        current: Number((raw.progress as JobProgress).current) || 0,
+        total: Number((raw.progress as JobProgress).total) || 0,
+      }
+      : null,
     slideCount: raw.slideCount ?? slides.length,
     slides,
     error: raw.error ?? null,
@@ -260,7 +297,7 @@ function hydrate(raw: Partial<Job> & { id: string; dir: string }): Job {
         return base.music;
       }
     })(),
-    highlight: raw.highlight ?? true,
+    highlight: raw.highlight ?? base.highlight,
     captionStyle: (() => {
       const value = raw.captionStyle as string | undefined;
       if (value === "classic" || value === "minimal") return "bar";
@@ -380,8 +417,10 @@ export async function createDraft(pptx: Buffer, filename: string): Promise<Job> 
       filename,
       bytes: pptx.length,
       createdAt: new Date().toISOString(),
+      startedAt: null,
       status: "draft",
       step: null,
+      progress: null,
       slideCount: deck.length,
       slides: deck.map((slide, index) => slideFromCopy(slide, scripts[index])),
       error: null,
@@ -479,28 +518,61 @@ export async function startJob(id: string, input: unknown): Promise<Job> {
   job.status = "queued";
   job.step = null;
   job.error = null;
+  job.startedAt = new Date().toISOString();
+  setJobProgress(job, 1, "已进入队列，马上开始处理。");
   await saveJob(job);
   enqueue(job);
   return job;
 }
 
-export async function deleteDraft(id: string): Promise<void> {
+export function canDeleteJob(status: JobStatus): boolean {
+  return status === "draft" || status === "done";
+}
+
+export async function deleteJob(id: string): Promise<void> {
   const job = jobs.get(id);
   if (!job) throw new JobError("任务不存在。", 404);
-  if (job.status !== "draft") throw new JobError("已经开始的任务不能删除。", 409);
+  if (!canDeleteJob(job.status)) {
+    throw new JobError(
+      job.status === "queued" || job.status === "running"
+        ? "处理中的任务不能删除。"
+        : "这个任务不能删除。",
+      409,
+    );
+  }
   jobs.delete(id);
   await fs.rm(job.dir, { recursive: true, force: true });
 }
 
 function enqueue(job: Job): void {
   const work = async () => {
+    log("job", "开始处理任务", {
+      id: job.id,
+      filename: job.filename,
+      slides: job.slideCount,
+      voice: job.voice,
+      tone: job.tone,
+      pace: job.pace,
+    });
     try {
       await runJob(job);
       await saveJob(job);
+      log("job", "任务完成", { id: job.id, status: job.status });
     } catch (error) {
+      const failedStep = job.step;
+      const failedProgress = job.progress;
       job.status = "failed";
       job.step = null;
       job.error = error instanceof Error ? error.message : "转换失败。";
+      logError("job", "任务失败", error, {
+        id: job.id,
+        step: failedStep,
+        progress: failedProgress,
+        voice: job.voice,
+        tone: job.tone,
+        pace: job.pace,
+        message: job.error,
+      });
       await fs.rm(path.join(job.dir, "output.mp4"), { force: true });
       await saveJob(job);
     }

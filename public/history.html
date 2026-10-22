@@ -20,7 +20,7 @@
   </header>
   <main>
     <section class="hero">
-      <h1>历史成片</h1>
+      <h1 class="history-title">历史成片</h1>
     </section>
     <section class="panel">
       <div class="player-frame">
@@ -33,6 +33,16 @@
       <ul id="list" class="history-list"></ul>
     </section>
   </main>
+  <div id="confirm" class="confirm-overlay" hidden>
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">删除成片？</h2>
+      <p id="confirm-message">删除后无法恢复。</p>
+      <div class="confirm-actions">
+        <button type="button" id="confirm-cancel" class="button secondary">取消</button>
+        <button type="button" id="confirm-ok" class="button danger">确认删除</button>
+      </div>
+    </div>
+  </div>
   <script src="/history.js" type="module"></script>
 </body>
 </html>

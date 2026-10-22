@@ -15,7 +15,7 @@ import {
 import { dataDir, maxUploadMb, publicDir } from "./config.js";
 import {
   createDraft,
-  deleteDraft,
+  deleteJob,
   getJob,
   hasActiveJob,
   JobError,
@@ -28,6 +28,7 @@ import {
   captionStyles,
   defaultCaptionStyle,
   defaultEffect,
+  defaultHighlight,
   defaultImportMode,
   defaultLayout,
   defaultMusic,
@@ -50,6 +51,7 @@ import {
   tones,
   voices,
 } from "./options.js";
+import { log, logError } from "./log.js";
 import { ensureAvatar } from "./pipeline/avatar.js";
 import { synthesizePreview } from "./pipeline/synthesize.js";
 
@@ -127,7 +129,7 @@ export function createApp() {
         importMode: defaultImportMode,
         captionStyle: defaultCaptionStyle,
         music: defaultMusic,
-        highlight: true,
+        highlight: defaultHighlight,
       },
     });
   });
@@ -193,7 +195,7 @@ export function createApp() {
 
   app.delete("/api/jobs/:id", async (req, res) => {
     try {
-      await deleteDraft(req.params.id);
+      await deleteJob(req.params.id);
       res.status(204).end();
     } catch (error) {
       sendJobError(res, error);
@@ -235,10 +237,16 @@ export function createApp() {
       await fs.promises.mkdir(previewDir, { recursive: true });
       const filePath = path.join(previewDir, `${voice}-${tone}-${pace}.mp3`);
       if (!fs.existsSync(filePath)) {
+        log("api", "试听合成", { voice, tone, pace });
         await synthesizePreview(previewLine(voice), voice, speechProsody(tone, pace), filePath);
       }
       res.type("audio/mpeg").sendFile(filePath);
     } catch (error) {
+      logError("api", "试听合成失败", error, {
+        voice: req.body?.voice,
+        tone: req.body?.tone,
+        pace: req.body?.pace,
+      });
       sendJobError(res, error);
     }
   });

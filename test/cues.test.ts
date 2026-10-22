@@ -24,6 +24,27 @@ test("按词边界把每一行接到它自己的语音结束时间", () => {
   assert.equal(cues[1].end, 2.8);
 });
 
+test("字幕标点不在词边界里时，不把下一句的语音时间吃进上一句", () => {
+  const cues = alignLines(
+    ['以"服务主业"驱动。', "再看两个中心。"],
+    [
+      { text: "以", offset: 0, duration: 0.2 * second },
+      { text: "服务", offset: 0.2 * second, duration: 0.4 * second },
+      { text: "主业", offset: 0.6 * second, duration: 0.4 * second },
+      { text: "驱动", offset: 1.0 * second, duration: 0.4 * second },
+      { text: "再看", offset: 1.5 * second, duration: 0.4 * second },
+      { text: "两个", offset: 1.9 * second, duration: 0.4 * second },
+      { text: "中心", offset: 2.3 * second, duration: 0.4 * second },
+    ],
+    3.0,
+  );
+  assert.equal(cues.length, 2);
+  assert.ok(Math.abs(cues[0].end - 1.4) < 0.05, `first end=${cues[0].end}`);
+  assert.equal(cues[1].start, cues[0].end);
+  assert.ok(cues[1].start < 1.6, `second start=${cues[1].start}`);
+  assert.equal(cues[1].end, 3.0);
+});
+
 test("没有词边界时按字数分配时长", () => {
   const cues = alignLines(["一二", "三四六"], [], 5);
   assert.equal(cues[0].start, 0);
